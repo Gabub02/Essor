@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Termin Manager Pro</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script type="module" src="/src/supabase.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -333,34 +334,22 @@ textarea { resize: vertical; min-height: 70px; }
         <div style="font-size:12px;color:#6b6b8a;margin-top:6px;">Nur Buchstaben, Zahlen, keine Leerzeichen</div>
       </div>
       <div class="info-box" id="channelPreview" style="display:none">
-        📱 Dein Kollege abonniert: <strong id="channelPreviewText"></strong>
+        📱 Dein Kollege nutzt den gleichen Code zum Einloggen
       </div>
       <button class="btn btn-accent btn-full" onclick="saveChefChannel()">✅ Weiter</button>
     </div>
 
     <!-- Kollege Setup -->
     <div id="kollegeSetup" style="display:none">
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-text">Lade die kostenlose App <strong>ntfy</strong> auf dein Handy herunter (App Store / Play Store)</div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-text">Öffne ntfy und tippe auf <strong>"+"</strong> unten rechts</div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-text">Gib diesen Code ein und abonniere:</div>
-        </div>
+      <div class="info-box" style="margin-bottom:20px">
+        💡 Du brauchst keine externe App! Alles läuft direkt hier in der Web-App mit Echtzeit-Updates.
       </div>
 
       <div class="form-group">
         <label>Team-Code von deinem Chef</label>
         <input type="text" id="kollegeChannelInput" placeholder="z.B. mustervertrieb2024" oninput="updateKollegePreview()">
       </div>
-      <div class="channel-display" id="kollegeChannelDisplay" style="display:none"></div>
-      <button class="btn btn-accent btn-full" id="kollegeWeiterBtn" onclick="saveKollegeChannel()" style="display:none">✅ Fertig – App öffnen</button>
+      <button class="btn btn-accent btn-full" id="kollegeWeiterBtn" onclick="saveKollegeChannel()">✅ Fertig – App öffnen</button>
     </div>
   </div>
 </div>
@@ -393,16 +382,7 @@ textarea { resize: vertical; min-height: 70px; }
     </div>
   </div>
 
-  <!-- QUEUE NOTIFICATION -->
-  <div class="queue-indicator" id="queueIndicator">
-    <div class="queue-icon">📤</div>
-    <div class="queue-text">
-      <strong>Ausstehende Benachrichtigungen</strong><br>
-      <span style="font-size:12px;color:#9b9bb8;">Werden gesendet, sobald Internet verfügbar ist</span>
-    </div>
-    <div class="queue-count" id="queueCount">0</div>
-  </div>
-
+  
   <!-- VIEW: TERMINE (Chef) -->
   <div class="view active" id="view-list">
     <div id="termineList"></div>
@@ -442,7 +422,7 @@ textarea { resize: vertical; min-height: 70px; }
         </select>
       </div>
       <div class="info-box">
-        🔔 Dein Kollege bekommt sofort eine Benachrichtigung auf sein Handy + eine Erinnerung zur richtigen Zeit.
+        🔔 Dein Kollege sieht den Termin sofort in Echtzeit in seiner App.
       </div>
       <button class="btn btn-accent btn-full" onclick="addTermin()">📅 Termin eintragen & Kollegen benachrichtigen</button>
     </div>
@@ -460,20 +440,15 @@ textarea { resize: vertical; min-height: 70px; }
       <div class="settings-value" id="settingsRole"></div>
     </div>
     <div class="settings-item">
-      <div class="settings-label">Team-Code (ntfy Kanal)</div>
+      <div class="settings-label">Team-Code</div>
       <div class="settings-value" id="settingsChannel"></div>
-      <div class="settings-desc">Dein Kollege muss diesen Code in der ntfy App abonnieren.</div>
+      <div class="settings-desc">Dein Kollege nutzt diesen Code zum Einloggen.</div>
     </div>
     <div class="settings-item">
       <div class="settings-label">Verbindungsstatus</div>
       <div class="settings-value" id="settingsStatus">Prüfe...</div>
-      <div class="settings-desc" id="settingsStatusDesc">Verbindung zu ntfy.sh wird geprüft...</div>
+      <div class="settings-desc" id="settingsStatusDesc">Verbindung zur Datenbank wird geprüft...</div>
     </div>
-    <div class="settings-item">
-      <div class="settings-label">ntfy App</div>
-      <div class="settings-desc">📱 <strong>Android:</strong> Play Store → "ntfy" suchen<br>🍎 <strong>iPhone:</strong> App Store → "ntfy" suchen<br><br>Dann "+" → diesen Code eingeben → abonnieren</div>
-    </div>
-    <button class="btn btn-accent btn-full" onclick="processQueue()" style="margin-bottom:8px">🔄 Warteschlange verarbeiten</button>
     <button class="btn btn-red btn-full" onclick="resetApp()">🔄 App zurücksetzen</button>
   </div>
 
@@ -516,177 +491,52 @@ textarea { resize: vertical; min-height: 70px; }
   </nav>
 </div>
 
-<script>
-// ─── STATE ───────────────────────────────────────────
+<script type="module">
+import { supabase } from '/src/supabase.js';
+
 let role = localStorage.getItem('tm_role');
 let channel = localStorage.getItem('tm_channel');
-let termine = JSON.parse(localStorage.getItem('tm_termine') || '[]');
-let verlauf = JSON.parse(localStorage.getItem('tm_verlauf') || '[]');
-let notificationQueue = JSON.parse(localStorage.getItem('tm_queue') || '[]');
+let teamId = localStorage.getItem('tm_team_id');
+let termine = [];
+let verlauf = [];
 let currentFilter = 'all';
 let currentView = role === 'kollege' ? 'kollege' : 'list';
-let reminderTimers = {};
-let isOnline = navigator.onLine;
-let connectionCheckInterval = null;
-let retryAttempts = {};
-const MAX_RETRY_ATTEMPTS = 3;
-
-// ─── CONNECTION MONITORING ───────────────────────────
-window.addEventListener('online', () => {
-  isOnline = true;
-  updateConnectionStatus();
-  processQueue();
-});
-
-window.addEventListener('offline', () => {
-  isOnline = false;
-  updateConnectionStatus();
-});
-
-async function checkNtfyConnection() {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch('https://ntfy.sh/stats', {
-      method: 'GET',
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch (e) {
-    return false;
-  }
-}
+let realtimeSubscription = null;
+let isOnline = true;
 
 async function updateConnectionStatus() {
   const dot = document.getElementById('statusDot');
   const text = document.getElementById('statusText');
   const settingsStatus = document.getElementById('settingsStatus');
   const settingsStatusDesc = document.getElementById('settingsStatusDesc');
-  
-  if (!isOnline) {
-    dot.className = 'status-dot offline';
-    text.textContent = 'Offline';
-    if (settingsStatus) settingsStatus.textContent = '🔴 Offline';
-    if (settingsStatusDesc) settingsStatusDesc.textContent = 'Keine Internetverbindung. Benachrichtigungen werden zwischengespeichert.';
-    return;
-  }
 
-  dot.className = 'status-dot checking';
-  text.textContent = 'Prüfe...';
-  
-  const ntfyAvailable = await checkNtfyConnection();
-  
-  if (ntfyAvailable) {
-    dot.className = 'status-dot online';
-    text.textContent = 'Online';
-    if (settingsStatus) settingsStatus.textContent = '🟢 Verbunden';
-    if (settingsStatusDesc) settingsStatusDesc.textContent = 'Verbindung zu ntfy.sh aktiv. Benachrichtigungen werden in Echtzeit gesendet.';
-  } else {
+  try {
+    const { error } = await supabase.from('teams').select('id').limit(1);
+
+    if (!error) {
+      dot.className = 'status-dot online';
+      text.textContent = 'Online';
+      if (settingsStatus) settingsStatus.textContent = '🟢 Verbunden';
+      if (settingsStatusDesc) settingsStatusDesc.textContent = 'Verbindung zur Datenbank aktiv. Alle Änderungen werden in Echtzeit synchronisiert.';
+      isOnline = true;
+    } else {
+      throw error;
+    }
+  } catch (e) {
     dot.className = 'status-dot offline';
     text.textContent = 'Getrennt';
-    if (settingsStatus) settingsStatus.textContent = '🟡 ntfy nicht erreichbar';
-    if (settingsStatusDesc) settingsStatusDesc.textContent = 'ntfy.sh ist momentan nicht erreichbar. Benachrichtigungen werden zwischengespeichert.';
+    if (settingsStatus) settingsStatus.textContent = '🔴 Verbindungsfehler';
+    if (settingsStatusDesc) settingsStatusDesc.textContent = 'Verbindung zur Datenbank fehlgeschlagen. Bitte Internetverbindung prüfen.';
+    isOnline = false;
   }
 }
 
-function startConnectionMonitoring() {
-  updateConnectionStatus();
-  if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-  connectionCheckInterval = setInterval(updateConnectionStatus, 30000); // Every 30s
-}
-
-// ─── NOTIFICATION QUEUE ──────────────────────────────
-function addToQueue(message, title, terminId) {
-  const queueItem = {
-    id: Date.now(),
-    terminId,
-    message,
-    title,
-    timestamp: new Date().toISOString(),
-    attempts: 0
-  };
-  
-  notificationQueue.push(queueItem);
-  saveQueue();
-  updateQueueIndicator();
-  return queueItem.id;
-}
-
-function removeFromQueue(queueId) {
-  notificationQueue = notificationQueue.filter(q => q.id !== queueId);
-  saveQueue();
-  updateQueueIndicator();
-}
-
-function updateQueueIndicator() {
-  const indicator = document.getElementById('queueIndicator');
-  const count = document.getElementById('queueCount');
-  
-  if (notificationQueue.length > 0) {
-    indicator.classList.add('show');
-    count.textContent = notificationQueue.length;
-  } else {
-    indicator.classList.remove('show');
-  }
-}
-
-async function processQueue() {
-  if (notificationQueue.length === 0) return;
-  
-  showToast('🔄 Verarbeite Warteschlange...', 'info');
-  
-  const itemsToProcess = [...notificationQueue];
-  let successCount = 0;
-  let failCount = 0;
-  
-  for (const item of itemsToProcess) {
-    if (item.attempts >= MAX_RETRY_ATTEMPTS) {
-      removeFromQueue(item.id);
-      failCount++;
-      continue;
-    }
-    
-    const success = await sendNotification(item.message, item.title, false);
-    
-    if (success) {
-      removeFromQueue(item.id);
-      successCount++;
-    } else {
-      item.attempts++;
-      failCount++;
-    }
-  }
-  
-  saveQueue();
-  
-  if (successCount > 0) {
-    showToast(`✅ ${successCount} Benachrichtigung(en) erfolgreich gesendet!`, 'success');
-  }
-  
-  if (failCount > 0 && notificationQueue.length > 0) {
-    showToast(`⚠️ ${notificationQueue.length} Benachrichtigung(en) noch in Warteschlange`, 'warning');
-  }
-}
-
-// ─── INIT ─────────────────────────────────────────────
-function init() {
-  if (role && channel) {
-    startApp();
+async function init() {
+  if (role && channel && teamId) {
+    await startApp();
   } else {
     document.getElementById('setupScreen').style.display = 'flex';
   }
-  scheduleAllReminders();
-  updateQueueIndicator();
-  
-  // Auto-process queue every 2 minutes
-  setInterval(() => {
-    if (isOnline && notificationQueue.length > 0) {
-      processQueue();
-    }
-  }, 120000);
 }
 
 function chooseRole(r) {
@@ -699,8 +549,8 @@ function chooseRole(r) {
     document.getElementById('channelSub').textContent = 'Wähle einen geheimen Code für euer Team. Deinen Kollegen musst du diesen Code einmal mitteilen.';
     document.getElementById('chefSetup').style.display = 'block';
   } else {
-    document.getElementById('channelTitle').textContent = '📱 Benachrichtigungen einrichten';
-    document.getElementById('channelSub').textContent = 'Installiere die kostenlose ntfy App und gib den Team-Code ein, den dir dein Chef geschickt hat.';
+    document.getElementById('channelTitle').textContent = '📱 Mit Team verbinden';
+    document.getElementById('channelSub').textContent = 'Gib den Team-Code ein, den dir dein Chef geschickt hat.';
     document.getElementById('kollegeSetup').style.display = 'block';
   }
 }
@@ -709,41 +559,97 @@ function updateChannelPreview() {
   const val = document.getElementById('channelInput').value.trim().replace(/\s+/g, '-');
   if (val.length > 2) {
     document.getElementById('channelPreview').style.display = 'block';
-    document.getElementById('channelPreviewText').textContent = val;
   }
 }
 
 function updateKollegePreview() {
   const val = document.getElementById('kollegeChannelInput').value.trim().replace(/\s+/g, '-');
   if (val.length > 2) {
-    document.getElementById('kollegeChannelDisplay').style.display = 'block';
-    document.getElementById('kollegeChannelDisplay').textContent = val;
     document.getElementById('kollegeWeiterBtn').style.display = 'block';
   }
 }
 
-function saveChefChannel() {
-  const val = document.getElementById('channelInput').value.trim().replace(/\s+/g, '-');
-  if (val.length < 3) { showToast('Bitte mindestens 3 Zeichen eingeben!', 'error'); return; }
-  channel = val;
-  localStorage.setItem('tm_role', 'chef');
-  localStorage.setItem('tm_channel', channel);
-  role = 'chef';
-  startApp();
+async function saveChefChannel() {
+  const val = document.getElementById('channelInput').value.trim().replace(/\s+/g, '-').toLowerCase();
+  if (val.length < 3) {
+    showToast('Bitte mindestens 3 Zeichen eingeben!', 'error');
+    return;
+  }
+
+  try {
+    let { data: existingTeam, error: selectError } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('channel_code', val)
+      .maybeSingle();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      throw selectError;
+    }
+
+    if (existingTeam) {
+      teamId = existingTeam.id;
+    } else {
+      const { data: newTeam, error: insertError } = await supabase
+        .from('teams')
+        .insert({ channel_code: val })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      teamId = newTeam.id;
+    }
+
+    channel = val;
+    role = 'chef';
+    localStorage.setItem('tm_role', 'chef');
+    localStorage.setItem('tm_channel', channel);
+    localStorage.setItem('tm_team_id', teamId);
+
+    await startApp();
+  } catch (error) {
+    console.error('Fehler beim Team-Setup:', error);
+    showToast('Fehler beim Einrichten. Bitte versuche es erneut.', 'error');
+  }
 }
 
-function saveKollegeChannel() {
-  const val = document.getElementById('kollegeChannelInput').value.trim().replace(/\s+/g, '-');
-  if (val.length < 3) { showToast('Bitte den Team-Code eingeben!', 'error'); return; }
-  channel = val;
-  localStorage.setItem('tm_role', 'kollege');
-  localStorage.setItem('tm_channel', channel);
-  role = 'kollege';
-  currentView = 'kollege';
-  startApp();
+async function saveKollegeChannel() {
+  const val = document.getElementById('kollegeChannelInput').value.trim().replace(/\s+/g, '-').toLowerCase();
+  if (val.length < 3) {
+    showToast('Bitte den Team-Code eingeben!', 'error');
+    return;
+  }
+
+  try {
+    const { data: team, error } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('channel_code', val)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!team) {
+      showToast('Team-Code nicht gefunden. Bitte Chef fragen!', 'error');
+      return;
+    }
+
+    channel = val;
+    teamId = team.id;
+    role = 'kollege';
+    currentView = 'kollege';
+    localStorage.setItem('tm_role', 'kollege');
+    localStorage.setItem('tm_channel', channel);
+    localStorage.setItem('tm_team_id', teamId);
+
+    await startApp();
+  } catch (error) {
+    console.error('Fehler beim Team-Beitritt:', error);
+    showToast('Fehler beim Einloggen. Bitte versuche es erneut.', 'error');
+  }
 }
 
-function startApp() {
+async function startApp() {
   document.getElementById('setupScreen').style.display = 'none';
   document.getElementById('channelScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = 'flex';
@@ -761,15 +667,16 @@ function startApp() {
 
   document.getElementById('settingsChannel').textContent = channel;
 
-  // Set today as default date
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('inp-date');
   if (dateInput) dateInput.value = today;
 
+  await loadTermine();
+  await loadVerlauf();
+  setupRealtimeSubscription();
+
   switchView(currentView);
-  scheduleAllReminders();
-  setInterval(updateCountdowns, 30000);
-  startConnectionMonitoring();
+  updateConnectionStatus();
 }
 
 // ─── VIEWS ───────────────────────────────────────────
@@ -807,7 +714,6 @@ function updateHeaderSub() {
   document.getElementById('headerSub').textContent = count + (count === 1 ? ' Termin' : ' Termine') + ' gesamt';
 }
 
-// ─── TERMINE RENDERN ─────────────────────────────────
 function renderTermine() {
   const list = document.getElementById('termineList');
   const now = new Date();
@@ -828,10 +734,6 @@ function renderTermine() {
     const badgeClass = apt.status === 'confirmed' ? 'badge-green' : isPast ? 'badge-red' : 'badge-yellow';
     const badgeText = apt.status === 'confirmed' ? '✓ Bestätigt' : isPast ? 'Vergangen' : '⏳ Ausstehend';
 
-    // Check if notification is still in queue
-    const inQueue = notificationQueue.some(q => q.terminId === apt.id);
-    const queueBadge = inQueue ? '<span class="badge badge-blue" style="margin-left:8px;">📤 In Warteschlange</span>' : '';
-
     return `
       <div class="card">
         <div class="card-top">
@@ -841,7 +743,6 @@ function renderTermine() {
           </div>
           <div>
             <span class="badge ${badgeClass}">${badgeText}</span>
-            ${queueBadge}
           </div>
         </div>
         <div class="card-meta">
@@ -851,9 +752,9 @@ function renderTermine() {
         ${!isPast && apt.status !== 'confirmed' ? `<div class="countdown">⏱ ${countdown}</div>` : ''}
         ${apt.note ? `<div class="card-note">💬 ${apt.note}</div>` : ''}
         <div class="card-actions">
-          ${apt.status !== 'confirmed' && !isPast ? `<button class="btn btn-green" onclick="confirmTermin(${apt.id})">✓ Bestätigen</button>` : ''}
-          <button class="btn btn-gray" onclick="notifyAgain(${apt.id})">🔔 Nochmal senden</button>
-          <button class="btn btn-red" onclick="deleteTermin(${apt.id})">Löschen</button>
+          ${apt.status !== 'confirmed' && !isPast ? `<button class="btn btn-green" onclick="confirmTermin('${apt.id}')">✓ Bestätigen</button>` : ''}
+          <button class="btn btn-gray" onclick="sendNotificationForTermin('${apt.id}')">🔔 Nochmal benachrichtigen</button>
+          <button class="btn btn-red" onclick="deleteTermin('${apt.id}')">Löschen</button>
         </div>
       </div>
     `;
@@ -888,161 +789,203 @@ function renderKollegeTermine() {
 
 function renderVerlauf() {
   const list = document.getElementById('notifList');
-  document.getElementById('headerSub').textContent = verlauf.length + ' gesendete Nachrichten';
+  document.getElementById('headerSub').textContent = verlauf.length + ' Benachrichtigungen';
 
   if (verlauf.length === 0) {
-    list.innerHTML = `<div class="empty"><div class="empty-icon">🔔</div><p>Noch keine Nachrichten gesendet</p></div>`;
+    list.innerHTML = `<div class="empty"><div class="empty-icon">🔔</div><p>Noch keine Benachrichtigungen</p></div>`;
     return;
   }
 
-  list.innerHTML = verlauf.map(n => `
-    <div class="notif-card">
-      <div class="notif-top">
-        <div>
-          <span class="badge ${n.success ? 'badge-green' : 'badge-yellow'}">${n.success ? '✅ Gesendet' : '📤 In Warteschlange'}</span>
-          <span class="notif-name" style="margin-left:8px;">${n.to}</span>
+  list.innerHTML = verlauf.map(n => {
+    const date = new Date(n.created_at);
+    const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+    return `
+      <div class="notif-card">
+        <div class="notif-top">
+          <div>
+            <span class="badge badge-green">✅ Gesendet</span>
+            <span class="notif-name" style="margin-left:8px;">${n.title}</span>
+          </div>
+          <span class="notif-time">${dateStr} ${timeStr}</span>
         </div>
-        <span class="notif-time">${n.time}</span>
+        <div class="notif-msg">${n.message}</div>
       </div>
-      <div class="notif-msg">${n.msg}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
-// ─── TERMIN HINZUFÜGEN ────────────────────────────────
+async function loadTermine() {
+  try {
+    const { data, error } = await supabase
+      .from('termine')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+
+    if (error) throw error;
+    termine = data || [];
+  } catch (error) {
+    console.error('Fehler beim Laden der Termine:', error);
+    showToast('Fehler beim Laden der Termine', 'error');
+  }
+}
+
+async function loadVerlauf() {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    verlauf = data || [];
+  } catch (error) {
+    console.error('Fehler beim Laden des Verlaufs:', error);
+  }
+}
+
+function setupRealtimeSubscription() {
+  if (realtimeSubscription) {
+    supabase.removeChannel(realtimeSubscription);
+  }
+
+  realtimeSubscription = supabase
+    .channel('team-' + teamId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'termine', filter: `team_id=eq.${teamId}` }, () => {
+      loadTermine().then(() => {
+        if (currentView === 'list') renderTermine();
+        if (currentView === 'kollege') renderKollegeTermine();
+      });
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `team_id=eq.${teamId}` }, async (payload) => {
+      if (role === 'kollege' && payload.new) {
+        showToast(`📅 ${payload.new.title}`, 'info');
+      }
+      await loadVerlauf();
+      if (currentView === 'notifications') renderVerlauf();
+    })
+    .subscribe();
+}
+
 async function addTermin() {
   const name = document.getElementById('inp-name').value.trim();
   const phone = document.getElementById('inp-phone').value.trim();
   const date = document.getElementById('inp-date').value;
   const time = document.getElementById('inp-time').value;
   const note = document.getElementById('inp-note').value.trim();
-  const reminder = parseInt(document.getElementById('inp-reminder').value);
+  const reminderMinutes = parseInt(document.getElementById('inp-reminder').value);
 
   if (!name || !date || !time) {
     showToast('Bitte Name, Datum & Uhrzeit ausfüllen!', 'error');
     return;
   }
 
-  const newApt = { id: Date.now(), name, phone, date, time, note, reminder, status: 'pending' };
-  termine.push(newApt);
-  saveTermine();
-
-  const sofortMsg = `📅 NEUER TERMIN\n\nKunde: ${name}\nDatum: ${formatDate(date)}\nUhrzeit: ${time} Uhr${phone ? '\nTel: ' + phone : ''}${note ? '\n📝 ' + note : ''}`;
-
-  const sent = await sendNotification(sofortMsg, '📅 Neuer Termin: ' + name, true, newApt.id);
-
-  const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  verlauf.unshift({ id: Date.now(), to: name, msg: sofortMsg.replace(/\n/g, ' '), time: now, success: sent });
-  saveVerlauf();
-
-  scheduleReminder(newApt);
-
-  document.getElementById('inp-name').value = '';
-  document.getElementById('inp-phone').value = '';
-  document.getElementById('inp-time').value = '';
-  document.getElementById('inp-note').value = '';
-
-  if (sent) {
-    showToast('✅ Termin eingetragen & Kollege benachrichtigt!', 'success');
-  } else {
-    showToast('💾 Termin gespeichert. Benachrichtigung wird gesendet, sobald Verbindung besteht.', 'warning');
-  }
-
-  switchView('list');
-}
-
-async function notifyAgain(id) {
-  const apt = termine.find(a => a.id === id);
-  if (!apt) return;
-  const msg = `🔔 ERINNERUNG\n\nKunde: ${apt.name}\nDatum: ${formatDate(apt.date)}\nUhrzeit: ${apt.time} Uhr${apt.phone ? '\nTel: ' + apt.phone : ''}${apt.note ? '\n📝 ' + apt.note : ''}`;
-  const sent = await sendNotification(msg, '🔔 Erinnerung: ' + apt.name, true, apt.id);
-  
-  if (sent) {
-    showToast('🔔 Erinnerung gesendet!', 'info');
-  } else {
-    showToast('📤 Erinnerung in Warteschlange. Wird gesendet, sobald Verbindung besteht.', 'warning');
-  }
-}
-
-function confirmTermin(id) {
-  termine = termine.map(a => a.id === id ? { ...a, status: 'confirmed' } : a);
-  saveTermine();
-  showToast('✅ Termin bestätigt!', 'success');
-  renderTermine();
-}
-
-function deleteTermin(id) {
-  const apt = termine.find(a => a.id === id);
-  if (!apt) return;
-  if (reminderTimers[id]) { clearTimeout(reminderTimers[id]); delete reminderTimers[id]; }
-  
-  // Remove from queue if exists
-  notificationQueue = notificationQueue.filter(q => q.terminId !== id);
-  saveQueue();
-  
-  termine = termine.filter(a => a.id !== id);
-  saveTermine();
-  showToast('🗑️ Termin gelöscht.', 'info');
-  renderTermine();
-  updateQueueIndicator();
-}
-
-// ─── BENACHRICHTIGUNG SENDEN (ntfy) ───────────────────
-async function sendNotification(message, title, useQueue = true, terminId = null) {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    
-    const response = await fetch('https://ntfy.sh/' + encodeURIComponent(channel), {
-      method: 'POST',
-      headers: {
-        'Title': title,
-        'Priority': 'high',
-        'Tags': 'calendar,briefcase',
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-      body: message,
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (response.ok) {
-      return true;
-    } else {
-      throw new Error('HTTP ' + response.status);
-    }
-  } catch (e) {
-    console.error('ntfy Fehler:', e);
-    
-    if (useQueue) {
-      addToQueue(message, title, terminId);
-    }
-    
-    return false;
+    const { data: termin, error: terminError } = await supabase
+      .from('termine')
+      .insert({
+        team_id: teamId,
+        name,
+        phone,
+        date,
+        time,
+        note,
+        reminder_minutes: reminderMinutes,
+        status: 'pending',
+        created_by: 'chef'
+      })
+      .select()
+      .single();
+
+    if (terminError) throw terminError;
+
+    const message = `📅 NEUER TERMIN\n\nKunde: ${name}\nDatum: ${formatDate(date)}\nUhrzeit: ${time} Uhr${phone ? '\nTel: ' + phone : ''}${note ? '\n📝 ' + note : ''}`;
+
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert({
+        team_id: teamId,
+        termin_id: termin.id,
+        title: '📅 Neuer Termin: ' + name,
+        message,
+        type: 'new_termin'
+      });
+
+    if (notifError) throw notifError;
+
+    document.getElementById('inp-name').value = '';
+    document.getElementById('inp-phone').value = '';
+    document.getElementById('inp-time').value = '';
+    document.getElementById('inp-note').value = '';
+
+    showToast('✅ Termin eingetragen!', 'success');
+    switchView('list');
+  } catch (error) {
+    console.error('Fehler beim Hinzufügen:', error);
+    showToast('Fehler beim Speichern des Termins', 'error');
   }
 }
 
-// ─── ERINNERUNGEN ─────────────────────────────────────
-function scheduleReminder(apt) {
-  if (reminderTimers[apt.id]) clearTimeout(reminderTimers[apt.id]);
-  const aptTime = new Date(apt.date + 'T' + apt.time);
-  const reminderTime = new Date(aptTime.getTime() - (apt.reminder || 15) * 60 * 1000);
-  const delay = reminderTime.getTime() - Date.now();
-  if (delay > 0 && delay < 7 * 24 * 60 * 60 * 1000) {
-    reminderTimers[apt.id] = setTimeout(async () => {
-      const msg = `⏰ ERINNERUNG in ${apt.reminder || 15} Min!\n\nKunde: ${apt.name}\nUm: ${apt.time} Uhr${apt.phone ? '\nTel: ' + apt.phone : ''}${apt.note ? '\n📝 ' + apt.note : ''}`;
-      const sent = await sendNotification(msg, '⏰ Gleich: ' + apt.name, true, apt.id);
-      
-      const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      verlauf.unshift({ id: Date.now(), to: apt.name + ' (Erinnerung)', msg: msg.replace(/\n/g, ' '), time: now, success: sent });
-      saveVerlauf();
-    }, delay);
+async function sendNotificationForTermin(terminId) {
+  const apt = termine.find(a => a.id === terminId);
+  if (!apt) return;
+
+  try {
+    const message = `🔔 ERINNERUNG\n\nKunde: ${apt.name}\nDatum: ${formatDate(apt.date)}\nUhrzeit: ${apt.time} Uhr${apt.phone ? '\nTel: ' + apt.phone : ''}${apt.note ? '\n📝 ' + apt.note : ''}`;
+
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        team_id: teamId,
+        termin_id: apt.id,
+        title: '🔔 Erinnerung: ' + apt.name,
+        message,
+        type: 'reminder'
+      });
+
+    if (error) throw error;
+    showToast('🔔 Benachrichtigung gesendet!', 'success');
+  } catch (error) {
+    console.error('Fehler beim Senden:', error);
+    showToast('Fehler beim Senden der Benachrichtigung', 'error');
   }
 }
 
-function scheduleAllReminders() {
-  termine.forEach(apt => scheduleReminder(apt));
+async function confirmTermin(terminId) {
+  try {
+    const { error } = await supabase
+      .from('termine')
+      .update({ status: 'confirmed' })
+      .eq('id', terminId);
+
+    if (error) throw error;
+    showToast('✅ Termin bestätigt!', 'success');
+  } catch (error) {
+    console.error('Fehler beim Bestätigen:', error);
+    showToast('Fehler beim Bestätigen', 'error');
+  }
+}
+
+async function deleteTermin(terminId) {
+  if (!confirm('Termin wirklich löschen?')) return;
+
+  try {
+    const { error } = await supabase
+      .from('termine')
+      .delete()
+      .eq('id', terminId);
+
+    if (error) throw error;
+    showToast('🗑️ Termin gelöscht', 'info');
+  } catch (error) {
+    console.error('Fehler beim Löschen:', error);
+    showToast('Fehler beim Löschen', 'error');
+  }
 }
 
 // ─── HILFSFUNKTIONEN ──────────────────────────────────
@@ -1062,10 +1005,6 @@ function getCountdown(date) {
   return 'Jetzt!';
 }
 
-function updateCountdowns() {
-  if (currentView === 'list') renderTermine();
-  if (currentView === 'kollege') renderKollegeTermine();
-}
 
 function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
@@ -1075,9 +1014,6 @@ function showToast(msg, type = 'success') {
   setTimeout(() => t.style.display = 'none', 4000);
 }
 
-function saveTermine() { localStorage.setItem('tm_termine', JSON.stringify(termine)); }
-function saveVerlauf() { localStorage.setItem('tm_verlauf', JSON.stringify(verlauf)); }
-function saveQueue() { localStorage.setItem('tm_queue', JSON.stringify(notificationQueue)); }
 
 function resetApp() {
   if (!confirm('App wirklich zurücksetzen? Alle Daten werden gelöscht.')) return;
@@ -1085,8 +1021,7 @@ function resetApp() {
   location.reload();
 }
 
-// ─── START ────────────────────────────────────────────
-init();
+window.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
