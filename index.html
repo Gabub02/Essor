@@ -297,22 +297,22 @@ textarea { resize: vertical; min-height: 70px; }
 <div id="setupScreen">
   <div class="setup-logo">📅</div>
   <div class="setup-title">Termin Manager Pro</div>
-  <div class="setup-sub">Eure private Termin-App für das Vertriebsteam.<br>Wer bist du?</div>
+  <div class="setup-sub">Eure private Termin-App für das Vertriebsteam.<br>Beide sind Chefs! Wer macht was?</div>
 
   <div class="setup-card">
     <h3>Rolle auswählen</h3>
-    <button class="role-btn" onclick="chooseRole('chef')">
-      <span class="icon">👨‍💼</span>
+    <button class="role-btn" id="btn-chef">
+      <span class="icon">📝</span>
       <div>
-        <div>Ich bin der Chef</div>
-        <div class="desc">Ich trage Termine ein</div>
+        <div>Termine eintragen</div>
+        <div class="desc">Ich erstelle und verwalte Termine</div>
       </div>
     </button>
-    <button class="role-btn" onclick="chooseRole('kollege')">
-      <span class="icon">🤝</span>
+    <button class="role-btn" id="btn-kollege">
+      <span class="icon">📱</span>
       <div>
-        <div>Ich bin der Kollege</div>
-        <div class="desc">Ich bekomme Benachrichtigungen</div>
+        <div>Termine empfangen</div>
+        <div class="desc">Ich bin im Vertrieb und bekomme die Termine</div>
       </div>
     </button>
   </div>
@@ -330,13 +330,13 @@ textarea { resize: vertical; min-height: 70px; }
     <div id="chefSetup" style="display:none">
       <div class="form-group">
         <label>Euer Team-Code (beliebig wählen)</label>
-        <input type="text" id="channelInput" placeholder="z.B. mustervertrieb2024" oninput="updateChannelPreview()">
+        <input type="text" id="channelInput" placeholder="z.B. mustervertrieb2024">
         <div style="font-size:12px;color:#6b6b8a;margin-top:6px;">Nur Buchstaben, Zahlen, keine Leerzeichen</div>
       </div>
       <div class="info-box" id="channelPreview" style="display:none">
-        📱 Dein Kollege nutzt den gleichen Code zum Einloggen
+        📱 Dein Partner nutzt den gleichen Code zum Einloggen
       </div>
-      <button class="btn btn-accent btn-full" onclick="saveChefChannel()">✅ Weiter</button>
+      <button class="btn btn-accent btn-full" id="btn-save-chef">✅ Weiter</button>
     </div>
 
     <!-- Kollege Setup -->
@@ -346,10 +346,10 @@ textarea { resize: vertical; min-height: 70px; }
       </div>
 
       <div class="form-group">
-        <label>Team-Code von deinem Chef</label>
-        <input type="text" id="kollegeChannelInput" placeholder="z.B. mustervertrieb2024" oninput="updateKollegePreview()">
+        <label>Team-Code von deinem Partner</label>
+        <input type="text" id="kollegeChannelInput" placeholder="z.B. mustervertrieb2024">
       </div>
-      <button class="btn btn-accent btn-full" id="kollegeWeiterBtn" onclick="saveKollegeChannel()">✅ Fertig – App öffnen</button>
+      <button class="btn btn-accent btn-full" id="btn-save-kollege">✅ Fertig – App öffnen</button>
     </div>
   </div>
 </div>
@@ -377,8 +377,8 @@ textarea { resize: vertical; min-height: 70px; }
   <div id="chefContent" style="display:none">
     <div class="filter-row">
       <button class="filter-btn active" onclick="setFilter('all', this)">Alle</button>
-      <button class="filter-btn" onclick="setFilter('pending', this)">⏳ Offen</button>
-      <button class="filter-btn" onclick="setFilter('confirmed', this)">✅ Bestätigt</button>
+      <button class="filter-btn" onclick="setFilter('upcoming', this)">📅 Anstehend</button>
+      <button class="filter-btn" onclick="setFilter('past', this)">✅ Vergangen</button>
     </div>
   </div>
 
@@ -422,9 +422,9 @@ textarea { resize: vertical; min-height: 70px; }
         </select>
       </div>
       <div class="info-box">
-        🔔 Dein Kollege sieht den Termin sofort in Echtzeit in seiner App.
+        🔔 Dein Partner sieht den Termin sofort in Echtzeit in seiner App und bekommt eine Benachrichtigung.
       </div>
-      <button class="btn btn-accent btn-full" onclick="addTermin()">📅 Termin eintragen & Kollegen benachrichtigen</button>
+      <button class="btn btn-accent btn-full" id="btn-add-termin">📅 Termin eintragen & Partner benachrichtigen</button>
     </div>
   </div>
 
@@ -455,9 +455,9 @@ textarea { resize: vertical; min-height: 70px; }
   <!-- VIEW: KOLLEGE (Termine sehen) -->
   <div class="view" id="view-kollege">
     <div class="collector-header">
-      <div class="collector-icon">🤝</div>
-      <div class="collector-title">Hallo Kollege!</div>
-      <div class="collector-sub">Hier siehst du alle deine anstehenden Termine.</div>
+      <div class="collector-icon">📱</div>
+      <div class="collector-title">Hallo Partner!</div>
+      <div class="collector-sub">Hier siehst du alle deine Vertriebstermine.</div>
     </div>
     <div id="kollegeTermineList"></div>
   </div>
@@ -532,6 +532,13 @@ async function updateConnectionStatus() {
 }
 
 async function init() {
+  // Setup initial event listeners
+  const btnChef = document.getElementById('btn-chef');
+  const btnKollege = document.getElementById('btn-kollege');
+  
+  if (btnChef) btnChef.addEventListener('click', () => chooseRole('chef'));
+  if (btnKollege) btnKollege.addEventListener('click', () => chooseRole('kollege'));
+  
   if (role && channel && teamId) {
     await startApp();
   } else {
@@ -546,12 +553,16 @@ function chooseRole(r) {
 
   if (r === 'chef') {
     document.getElementById('channelTitle').textContent = '⚙️ Team-Code festlegen';
-    document.getElementById('channelSub').textContent = 'Wähle einen geheimen Code für euer Team. Deinen Kollegen musst du diesen Code einmal mitteilen.';
+    document.getElementById('channelSub').textContent = 'Wähle einen geheimen Code für euer Team. Dein Partner nutzt diesen Code zum Einloggen.';
     document.getElementById('chefSetup').style.display = 'block';
+    document.getElementById('channelInput').addEventListener('input', updateChannelPreview);
+    document.getElementById('btn-save-chef').addEventListener('click', saveChefChannel);
   } else {
     document.getElementById('channelTitle').textContent = '📱 Mit Team verbinden';
-    document.getElementById('channelSub').textContent = 'Gib den Team-Code ein, den dir dein Chef geschickt hat.';
+    document.getElementById('channelSub').textContent = 'Gib den Team-Code ein, den dir dein Partner geschickt hat.';
     document.getElementById('kollegeSetup').style.display = 'block';
+    document.getElementById('kollegeChannelInput').addEventListener('input', updateKollegePreview);
+    document.getElementById('btn-save-kollege').addEventListener('click', saveKollegeChannel);
   }
 }
 
@@ -559,14 +570,14 @@ function updateChannelPreview() {
   const val = document.getElementById('channelInput').value.trim().replace(/\s+/g, '-');
   if (val.length > 2) {
     document.getElementById('channelPreview').style.display = 'block';
+  } else {
+    document.getElementById('channelPreview').style.display = 'none';
   }
 }
 
 function updateKollegePreview() {
   const val = document.getElementById('kollegeChannelInput').value.trim().replace(/\s+/g, '-');
-  if (val.length > 2) {
-    document.getElementById('kollegeWeiterBtn').style.display = 'block';
-  }
+  // Keine zusätzliche Aktion nötig - Button ist immer sichtbar
 }
 
 async function saveChefChannel() {
@@ -657,12 +668,12 @@ async function startApp() {
   if (role === 'chef') {
     document.getElementById('chefContent').style.display = 'block';
     document.getElementById('chefNav').style.display = 'flex';
-    document.getElementById('roleLabel').textContent = '👨‍💼 Chef Dashboard';
-    document.getElementById('settingsRole').textContent = 'Chef (Termine eintragen)';
+    document.getElementById('roleLabel').textContent = '📝 Termin-Manager';
+    document.getElementById('settingsRole').textContent = 'Termin-Manager (Termine erstellen)';
   } else {
     document.getElementById('kollegeNav').style.display = 'flex';
-    document.getElementById('roleLabel').textContent = '🤝 Kollege';
-    document.getElementById('settingsRole').textContent = 'Kollege (Termine empfangen)';
+    document.getElementById('roleLabel').textContent = '📱 Vertrieb';
+    document.getElementById('settingsRole').textContent = 'Vertrieb (Termine empfangen)';
   }
 
   document.getElementById('settingsChannel').textContent = channel;
@@ -698,7 +709,16 @@ function switchView(view) {
   if (view === 'list') { renderTermine(); updateHeaderSub(); }
   if (view === 'notifications') { renderVerlauf(); }
   if (view === 'kollege') { renderKollegeTermine(); }
-  if (view === 'add') { document.getElementById('headerSub').textContent = 'Termin eintragen & Kollegen benachrichtigen'; }
+  if (view === 'add') { 
+    document.getElementById('headerSub').textContent = 'Termin eintragen & Partner benachrichtigen';
+    // Setup add termin button listener
+    const addBtn = document.getElementById('btn-add-termin');
+    if (addBtn) {
+      const newBtn = addBtn.cloneNode(true);
+      addBtn.parentNode.replaceChild(newBtn, addBtn);
+      document.getElementById('btn-add-termin').addEventListener('click', addTermin);
+    }
+  }
   if (view === 'settings') { updateConnectionStatus(); }
 }
 
@@ -719,7 +739,10 @@ function renderTermine() {
   const now = new Date();
   const filtered = termine.filter(a => {
     if (currentFilter === 'all') return true;
-    return a.status === currentFilter;
+    const aptDate = new Date(a.date + 'T' + a.time);
+    if (currentFilter === 'upcoming') return aptDate >= now;
+    if (currentFilter === 'past') return aptDate < now;
+    return true;
   }).sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
 
   if (filtered.length === 0) {
@@ -731,8 +754,8 @@ function renderTermine() {
     const aptDate = new Date(apt.date + 'T' + apt.time);
     const isPast = aptDate < now;
     const countdown = getCountdown(aptDate);
-    const badgeClass = apt.status === 'confirmed' ? 'badge-green' : isPast ? 'badge-red' : 'badge-yellow';
-    const badgeText = apt.status === 'confirmed' ? '✓ Bestätigt' : isPast ? 'Vergangen' : '⏳ Ausstehend';
+    const badgeClass = isPast ? 'badge-red' : 'badge-green';
+    const badgeText = isPast ? 'Vergangen' : '📅 Anstehend';
 
     return `
       <div class="card">
@@ -749,11 +772,11 @@ function renderTermine() {
           <span>📅 ${formatDate(apt.date)}</span>
           <span>🕐 ${apt.time} Uhr</span>
         </div>
-        ${!isPast && apt.status !== 'confirmed' ? `<div class="countdown">⏱ ${countdown}</div>` : ''}
+        ${!isPast ? `<div class="countdown">⏱ ${countdown}</div>` : ''}
         ${apt.note ? `<div class="card-note">💬 ${apt.note}</div>` : ''}
         <div class="card-actions">
-          ${apt.status !== 'confirmed' && !isPast ? `<button class="btn btn-green" onclick="confirmTermin('${apt.id}')">✓ Bestätigen</button>` : ''}
           <button class="btn btn-gray" onclick="sendNotificationForTermin('${apt.id}')">🔔 Nochmal benachrichtigen</button>
+          <button class="btn btn-accent" onclick="downloadCalendarEvent('${apt.id}')">📅 Zu Kalender</button>
           <button class="btn btn-red" onclick="deleteTermin('${apt.id}')">Löschen</button>
         </div>
       </div>
@@ -865,6 +888,13 @@ function setupRealtimeSubscription() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `team_id=eq.${teamId}` }, async (payload) => {
       if (role === 'kollege' && payload.new) {
         showToast(`📅 ${payload.new.title}`, 'info');
+        
+        // Play notification sound
+        try {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZUQ==');
+          audio.volume = 0.3;
+          audio.play().catch(() => {}); // Ignore if autoplay blocked
+        } catch (e) {}
       }
       await loadVerlauf();
       if (currentView === 'notifications') renderVerlauf();
@@ -917,6 +947,11 @@ async function addTermin() {
       });
 
     if (notifError) throw notifError;
+    
+    // Auto-download calendar file
+    setTimeout(() => {
+      downloadCalendarEvent(termin.id);
+    }, 500);
 
     document.getElementById('inp-name').value = '';
     document.getElementById('inp-phone').value = '';
@@ -986,6 +1021,71 @@ async function deleteTermin(terminId) {
     console.error('Fehler beim Löschen:', error);
     showToast('Fehler beim Löschen', 'error');
   }
+}
+
+function downloadCalendarEvent(terminId) {
+  const apt = termine.find(a => a.id === terminId);
+  if (!apt) return;
+
+  // Create ICS file content
+  const startDate = new Date(apt.date + 'T' + apt.time);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour duration
+  
+  // Format dates for ICS (YYYYMMDDTHHmmss)
+  const formatICSDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+  };
+  
+  const description = `${apt.note || 'Termin'}${apt.phone ? '\\nTel: ' + apt.phone : ''}`.replace(/\n/g, '\\n');
+  
+  const icsLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Termin Manager Pro//DE',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `DTSTART:${formatICSDate(startDate)}`,
+    `DTEND:${formatICSDate(endDate)}`,
+    `SUMMARY:${apt.name}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${apt.phone || ''}`,
+    `UID:${apt.id}@terminmanager.pro`,
+    `DTSTAMP:${formatICSDate(new Date())}`,
+    'STATUS:CONFIRMED',
+    'SEQUENCE:0'
+  ];
+  
+  if (apt.reminder_minutes) {
+    icsLines.push('BEGIN:VALARM');
+    icsLines.push(`TRIGGER:-PT${apt.reminder_minutes}M`);
+    icsLines.push('ACTION:DISPLAY');
+    icsLines.push(`DESCRIPTION:Erinnerung: ${apt.name}`);
+    icsLines.push('END:VALARM');
+  }
+  
+  icsLines.push('END:VEVENT');
+  icsLines.push('END:VCALENDAR');
+  
+  const icsContent = icsLines.join('\r\n');
+  
+  // Create download
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `termin-${apt.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+  
+  showToast('📅 Kalender-Datei heruntergeladen!', 'success');
 }
 
 // ─── HILFSFUNKTIONEN ──────────────────────────────────
