@@ -231,5 +231,5 @@ window.addEventListener('load', () => {
 // ===========================
 // Console Welcome Message
 // ===========================
-console.log('%c🚀 VertriebsPro Website', 'color: #3b82f6; font-size: 24px; font-weight: bold;');
+console.log('%c🚀 Essor Website', 'color: #3b82f6; font-size: 24px; font-weight: bold;');
 console.log('%cProfessionelle Vertriebslösungen für Ihr Unternehmen', 'color: #6b7280; font-size: 14px;');
